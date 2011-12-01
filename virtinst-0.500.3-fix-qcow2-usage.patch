@@ -1,0 +1,107 @@
+diff -rup --new-file virtinst-0.500.3/man/en/virt-install.pod.in new/man/en/virt-install.pod.in
+--- virtinst-0.500.3/man/en/virt-install.pod.in	2010-03-23 17:34:45.000000000 -0400
++++ new/man/en/virt-install.pod.in	2010-08-02 12:32:48.843472000 -0400
+@@ -334,7 +334,14 @@ read and write caching.
+ 
+ Image format to be used if creating managed storage. For file volumes, this
+ can be 'raw', 'qcow2', 'vmdk', etc. See format types in
+-L<http://libvirt.org/storage.html> for possible values.
++L<http://libvirt.org/storage.html> for possible values. This is often
++mapped to the B<driver_type> value as well.
++
++With libvirt 0.8.3 and later, this option should be specified if reusing
++and existing disk image, since libvirt does not autodetect storage format
++as it is a potential security issue. For example, if reusing and existing
++qcow2 image, you will want to specify format=qcow2, otherwise the hypervisor
++may not be able to read your disk image.
+ 
+ =back
+ 
+diff -rup --new-file virtinst-0.500.3/tests/xmlconfig.py new/tests/xmlconfig.py
+--- virtinst-0.500.3/tests/xmlconfig.py	2010-03-23 10:45:10.000000000 -0400
++++ new/tests/xmlconfig.py	2010-08-02 12:32:48.859471000 -0400
+@@ -350,6 +350,12 @@ class TestXMLConfig(unittest.TestCase):
+         self.conn_function_wrappers(g, "misc-qemu-iso-disk", True,
+                                     conn_uri=qemu_uri)
+ 
++        g = get_basic_fullyvirt_guest()
++        g.disks.append(get_filedisk("/default-pool/iso-vol"))
++        g.disks[0].driver_type = "qcow2"
++        fargs = (g, "misc-qemu-driver-overwrite", True)
++        self.conn_function_wrappers(g, fargs, conn_uri=qemu_uri)
++
+     def testXMLEscaping(self):
+         g = get_basic_fullyvirt_guest()
+         g.disks.append(get_filedisk("/tmp/ISO&'&s"))
+diff -rup --new-file virtinst-0.500.3/tests/xmlconfig-xml/misc-qemu-driver-overwrite.xml new/tests/xmlconfig-xml/misc-qemu-driver-overwrite.xml
+--- virtinst-0.500.3/tests/xmlconfig-xml/misc-qemu-driver-overwrite.xml	1969-12-31 19:00:00.000000000 -0500
++++ new/tests/xmlconfig-xml/misc-qemu-driver-overwrite.xml	2010-08-02 12:32:48.845475000 -0400
+@@ -0,0 +1,36 @@
++<domain type='xen'>
++  <name>TestGuest</name>
++  <currentMemory>204800</currentMemory>
++  <memory>409600</memory>
++  <uuid>12345678-1234-1234-1234-123456789012</uuid>
++  <os>
++    <type arch='i686'>hvm</type>
++    <loader>/usr/lib/xen/boot/hvmloader</loader>
++    <boot dev='cdrom'/>
++  </os>
++  <features>
++    <acpi/><apic/>
++  </features>
++  <clock offset="utc"/>
++  <on_poweroff>destroy</on_poweroff>
++  <on_reboot>destroy</on_reboot>
++  <on_crash>destroy</on_crash>
++  <vcpu>5</vcpu>
++  <devices>
++    <emulator>/usr/lib/xen/bin/qemu-dm</emulator>
++    <disk type='file' device='disk'>
++      <driver name='qemu' type='qcow2'/>
++      <source file='/default-pool/iso-vol'/>
++      <target dev='hda' bus='ide'/>
++    </disk>
++    <disk type='block' device='cdrom'>
++      <driver name='qemu'/>
++      <source dev='/dev/loop0'/>
++      <target dev='hdc' bus='ide'/>
++      <readonly/>
++    </disk>
++    <input type='mouse' bus='ps2'/>
++    <graphics type='sdl' display=':3.4' xauth='/tmp/.Xauthority'/>
++    <console type='pty'/>
++  </devices>
++</domain>
+diff -rup --new-file virtinst-0.500.3/virtinst/VirtualDisk.py new/virtinst/VirtualDisk.py
+--- virtinst-0.500.3/virtinst/VirtualDisk.py	2010-08-02 12:31:23.214359000 -0400
++++ new/virtinst/VirtualDisk.py	2010-08-02 12:32:48.865472000 -0400
+@@ -713,7 +713,11 @@ class VirtualDisk(VirtualDevice):
+             if driver.lower() == "qemu":
+                 drvname = self.DRIVER_QEMU
+ 
+-        if self.vol_object:
++        if self.format:
++            if drvname == self.DRIVER_QEMU:
++                drvtype = _qemu_sanitize_drvtype(self.type, self.format)
++
++        elif self.vol_object:
+             fmt = _util.get_xml_path(self.vol_object.XMLDesc(0),
+                                      "/volume/target/format/@type")
+             if drvname == self.DRIVER_QEMU:
+@@ -734,11 +738,13 @@ class VirtualDisk(VirtualDevice):
+                 drvname = self.DRIVER_TAP
+                 drvtype = self.DRIVER_TAP_VDISK
+ 
++        # User already set driverName to a different value, respect that
+         if self._driverName and self._driverName != drvname:
+-            # User already set driverName to a different value, respect that
+             return
+-
+         self._driverName = drvname or None
++
++        if self._driverType and self._driverType != drvtype:
++            return
+         self._driverType = drvtype or None
+ 
+     def __lookup_vol_name(self, name_tuple):

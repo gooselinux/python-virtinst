@@ -1,0 +1,23 @@
+diff -rup virtinst-0.500.3/virtinst/Guest.py new/virtinst/Guest.py
+--- virtinst-0.500.3/virtinst/Guest.py	2010-03-23 16:57:08.000000000 -0400
++++ new/virtinst/Guest.py	2010-05-25 10:22:25.246340000 -0400
+@@ -1154,8 +1154,9 @@ class Guest(object):
+     def _set_defaults(self, devlist_func):
+         soundtype = VirtualDevice.VIRTUAL_DEV_AUDIO
+         videotype = VirtualDevice.VIRTUAL_DEV_VIDEO
++        is_qemu = (_util.get_uri_driver(self.conn.getURI()) == "qemu")
+ 
+-        # Generate disk targets, and set preferred disk bus
++        # Generate disk targets, and set preferred disk bus, set cache
+         used_targets = []
+         for disk in devlist_func(VirtualDevice.VIRTUAL_DEV_DISK):
+             if not disk.bus:
+@@ -1163,6 +1164,8 @@ class Guest(object):
+                     disk.bus = "fdc"
+                 else:
+                     disk.bus = self._diskbus
++            if is_qemu and not disk.driver_cache:
++                disk.driver_cache = disk.CACHE_MODE_NONE
+             used_targets.append(disk.generate_target(used_targets))
+ 
+         # Set sound device model

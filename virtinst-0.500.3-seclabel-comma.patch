@@ -1,0 +1,64 @@
+# HG changeset patch
+# User Cole Robinson <crobinso@redhat.com>
+# Date 1273774398 14400
+# Node ID 0911564fd0b623dc6a578926ef89dcfb6bec1de7
+# Parent  1075df76aa63c1f319eb20a58386284fca276a82
+virt-install: Handle commas in security labels
+
+diff -r 1075df76aa63 -r 0911564fd0b6 tests/clitest.py
+--- a/tests/clitest.py	Wed May 12 17:34:46 2010 -0400
++++ b/tests/clitest.py	Thu May 13 14:13:18 2010 -0400
+@@ -372,6 +372,10 @@
+         "--hvm --nodisks --pxe --security type=dynamic",
+         # --security implicit static
+         "--hvm --nodisks --pxe --security label=foobar.label",
++        # --security static with commas 1
++        "--hvm --nodisks --pxe --security label=foobar.label,a1,z2,b3,type=static",
++        # --security static with commas 2
++        "--hvm --nodisks --pxe --security label=foobar.label,a1,z2,b3",
+       ],
+ 
+       "invalid": [
+diff -r 1075df76aa63 -r 0911564fd0b6 virt-install
+--- a/virt-install	Wed May 12 17:34:46 2010 -0400
++++ b/virt-install	Thu May 13 14:13:18 2010 -0400
+@@ -185,6 +185,7 @@
+ 
+     # Parse security opts
+     opts = cli.parse_optstr(secopts)
++    arglist = secopts.split(",")
+     secmodel = virtinst.Seclabel(guest.conn)
+ 
+     def get_and_clear(dictname):
+@@ -192,11 +193,31 @@
+         if opts.has_key(dictname):
+             val = opts[dictname]
+             del(opts[dictname])
++
+         return val
+ 
++    # Beware, adding boolean options here could upset label comma handling
+     mode = get_and_clear("type")
+     label = get_and_clear("label")
+ 
++    # Try to fix up label if it contained commas
++    if label:
++        tmparglist = arglist[:]
++        for idx in range(len(tmparglist)):
++            arg = tmparglist[idx]
++            if not arg.split("=")[0] == "label":
++                continue
++
++            for arg in tmparglist[idx+1:]:
++                if arg.count("="):
++                    break
++
++                if arg:
++                    label += "," + arg
++                    del(opts[arg])
++
++            break
++
+     if label:
+         secmodel.label = label
+         if not mode:

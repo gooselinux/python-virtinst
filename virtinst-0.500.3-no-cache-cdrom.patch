@@ -1,0 +1,14 @@
+diff -rup virtinst-0.500.3/virtinst/Guest.py new/virtinst/Guest.py
+--- virtinst-0.500.3/virtinst/Guest.py	2010-07-20 16:46:27.207608000 -0400
++++ new/virtinst/Guest.py	2010-07-20 16:48:35.595368000 -0400
+@@ -1165,7 +1165,9 @@ class Guest(object):
+                     disk.bus = "fdc"
+                 else:
+                     disk.bus = self._diskbus
+-            if is_qemu and not disk.driver_cache:
++            if (is_qemu and
++                not disk.driver_cache and
++                not disk.device == disk.DEVICE_CDROM):
+                 disk.driver_cache = disk.CACHE_MODE_NONE
+             used_targets.append(disk.generate_target(used_targets))
+ 

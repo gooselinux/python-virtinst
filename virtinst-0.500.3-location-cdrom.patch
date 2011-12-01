@@ -1,0 +1,22 @@
+# HG changeset patch
+# User Cole Robinson <crobinso@redhat.com>
+# Date 1273170531 14400
+# Node ID 666e8b658272b5897dc49765f643932b6b97465f
+# Parent  dea9100e5bf2f6c4dd543054f906f0709064fef4
+Fix virt-install --location dvd.iso
+
+diff -r dea9100e5bf2 -r 666e8b658272 virtinst/DistroInstaller.py
+--- a/virtinst/DistroInstaller.py	Wed May 12 10:21:24 2010 -0400
++++ b/virtinst/DistroInstaller.py	Thu May 06 14:28:51 2010 -0400
+@@ -274,7 +274,10 @@
+     # General Installer methods
+ 
+     def scratchdir_required(self):
+-        return bool(not self._location_is_path)
++        is_url = not self._location_is_path
++        mount_dvd = self._location_is_path and not self.cdrom
++
++        return bool(is_url or mount_dvd)
+ 
+     def prepare(self, guest, meter, distro = None):
+         self.cleanup()

@@ -1,0 +1,62 @@
+# HG changeset patch
+# User Cole Robinson <crobinso@redhat.com>
+# Date 1272988095 14400
+# Node ID 1d3ad914004f6620f78098236fcaaadb83b2a942
+# Parent  74bc3757b2471ded2eea38d64f73d8cd3cd51eeb
+VirtualDisk: Refresh parent pool if we don't find requested volume
+
+diff -r 74bc3757b247 -r 1d3ad914004f virtinst/VirtualDisk.py
+--- a/virtinst/VirtualDisk.py	Mon Apr 26 12:02:36 2010 -0400
++++ b/virtinst/VirtualDisk.py	Tue May 04 11:48:15 2010 -0400
+@@ -797,13 +797,15 @@
+ 
+         def lookup_vol_by_path():
+             try:
+-                return self.conn.storageVolLookupByPath(self.path)
+-            except:
+-                return None
++                vol = self.conn.storageVolLookupByPath(self.path)
++                vol.info()
++                return vol, None
++            except Exception, e:
++                return None, e
+ 
+         pool = _util.lookup_pool_by_path(self.conn,
+                                          os.path.dirname(self.path))
+-        vol = lookup_vol_by_path()
++        vol = lookup_vol_by_path()[0]
+ 
+ 
+         # Is pool running?
+@@ -811,24 +813,17 @@
+             pool = None
+ 
+         # Attempt to lookup path as a storage volume
+-        try:
+-            if vol:
+-                vol.info()
+-        except:
++        if pool and not vol:
+             try:
+-                try:
+-                    # Pool may need to be refreshed, but if it errors,
+-                    # invalidate it
+-                    if pool:
+-                        pool.refresh(0)
+-                except:
+-                    pool = None
+-                    raise
++                # Pool may need to be refreshed, but if it errors,
++                # invalidate it
++                if pool:
++                    pool.refresh(0)
+ 
+-                vol = self.conn.storageVolLookupByPath(self.path)
+-                vol.info()
++                vol, verr = lookup_vol_by_path()
+             except Exception, e:
+                 vol = None
++                pool = None
+                 verr = str(e)
+ 
+         if vol:
